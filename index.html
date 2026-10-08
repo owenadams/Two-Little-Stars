@@ -409,7 +409,15 @@
       { icon: '🐢🌊', name: 'Undersea Lullaby', prompt: 'Two siblings explore a glowing reef and help a little sea turtle find its way home before bedtime', photoKeywords: ['water'] },
       { icon: '🐰🌲', name: 'Woodland Rescue', prompt: 'Two siblings help a lost bunny find its family in a friendly moonlit forest', photoKeywords: ['bunny', 'farm', 'sleep'] },
       { icon: '☁️🏰', name: 'Cloud Castle', prompt: 'Two siblings visit a soft cloud castle and help its star keeper find a missing moonbeam', photoKeywords: ['stars', 'space', 'sleep'] },
-      { icon: '🏰🧸', name: 'Blanket-Fort Kingdom', prompt: 'Two siblings build a blanket fort that becomes a cozy kingdom with a tiny friendly dragon', photoKeywords: ['sleep', 'stars'] }
+      { icon: '🏰🧸', name: 'Blanket-Fort Kingdom', prompt: 'Two siblings build a blanket fort that becomes a cozy kingdom with a tiny friendly dragon', photoKeywords: ['sleep', 'stars'] },
+      { icon: '⛵', name: 'Pirate Picnic', prompt: 'Two siblings join friendly pirates for a seaside picnic and follow a picture map to find the missing basket', photoKeywords: ['water', 'stars', 'sleep'] },
+      { icon: '🌻', name: 'Rainbow Garden', prompt: 'Two siblings help a little rabbit grow a rainbow garden and discover who has been sharing the strawberries', photoKeywords: ['bunny', 'farm', 'sleep'] },
+      { icon: '🧸', name: 'Teddy Post Office', prompt: 'Two siblings help a teddy bear deliver a special invitation when the address on the envelope gets smudged', photoKeywords: ['sleep', 'stars'] },
+      { icon: '🐧', name: 'Snowy Penguins', prompt: 'Two siblings help a young penguin build a snow slide and invite its shy friend to play', photoKeywords: ['water', 'stars', 'sleep'] },
+      { icon: '🏮', name: 'Firefly Festival', prompt: 'Two siblings help woodland friends prepare a firefly festival and find a place for a tiny guest who feels left out', photoKeywords: ['bunny', 'stars', 'sleep'] },
+      { icon: '🥐', name: 'Little Bakery', prompt: 'Two siblings help a friendly mouse bake bread for a village breakfast and solve the mystery of the missing mixing spoon', photoKeywords: ['farm', 'sleep'] },
+      { icon: '🎈', name: 'Balloon Journey', prompt: 'Two siblings travel in a gentle hot-air balloon to deliver a birthday gift to a friend above the clouds', photoKeywords: ['space', 'stars', 'sleep'] },
+      { icon: '🐉', name: 'Friendly Dragon', prompt: 'Two siblings meet a small dragon whose sneezes make bubbles and help it prepare a surprise for a friend', photoKeywords: ['unicorn', 'stars', 'sleep'] }
     ];
 
     const MODEL_PREFERENCE = [
@@ -696,9 +704,18 @@
     let currentStoryId = '';
     let isReadingFavorite = false;
     let currentStoryPhotoKeywords = [];
+    let modelCache = null;
+    let successfulModel = '';
 
     async function getAvailableModels(apiKey) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(apiKey)}`);
+      if (modelCache?.apiKey === apiKey && modelCache.expiresAt > Date.now()) {
+        return modelCache.models;
+      }
+      modelCache = null;
+      successfulModel = '';
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(apiKey)}`, {
+        signal: AbortSignal.timeout(10000)
+      });
       const data = await res.json();
       if (!res.ok || data.error) {
         throw new Error(data.error?.message || `Could not list models (${res.status}).`);
@@ -720,7 +737,11 @@
           return firstIsFlash - secondIsFlash || firstModel.localeCompare(secondModel);
         });
 
-      return [...preferredModels, ...remainingModels].slice(0, 5);
+      const candidates = [...preferredModels, ...remainingModels].slice(0, 5);
+      if (candidates.length) {
+        modelCache = { apiKey, models: candidates, expiresAt: Date.now() + 10 * 60 * 1000 };
+      }
+      return candidates;
     }
 
     async function callGeminiWithFallback(apiKey, systemPrompt) {
@@ -729,11 +750,15 @@
         throw new Error('This API key has no Gemini models that support generateContent.');
       }
 
+      const orderedModels = successfulModel && models.includes(successfulModel)
+        ? [successfulModel, ...models.filter(model => model !== successfulModel)]
+        : models;
       const errors = [];
-      for (const model of models) {
+      for (const model of orderedModels) {
         try {
           const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
+            signal: AbortSignal.timeout(20000),
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ parts: [{ text: systemPrompt }] }],
@@ -744,16 +769,22 @@
           const data = await res.json();
           if (!res.ok || data.error) {
             errors.push(`${model}: ${data.error?.message || `Request failed (${res.status}).`}`);
+            if (model === successfulModel) successfulModel = '';
+            if (res.status === 404) modelCache = null;
+            if (res.status === 401 || res.status === 403) break;
             continue;
           }
 
           const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (responseText) {
-            return JSON.parse(responseText);
+            const chapter = JSON.parse(responseText);
+            successfulModel = model;
+            return chapter;
           }
           errors.push(`${model}: The API returned no generated text.`);
         } catch (err) {
-          errors.push(`${model}: ${err.message}`);
+          if (model === successfulModel) successfulModel = '';
+          errors.push(`${model}: ${err.name === 'TimeoutError' ? 'Request timed out; trying another model.' : err.message}`);
         }
       }
 
@@ -805,6 +836,7 @@ You are a master children's bedtime story author writing a soothing, coherent 3-
     Reflect each child's age in their behavior, use their names exactly as written, and refer to them as siblings without assuming their genders.
 
 Themes: Farm animals, unicorns, princesses, space, trains, dinosaurs, undersea adventures, woodlands, castles, blanket forts, talking animals, and gentle mysteries.
+Follow the selected premise rather than inserting unrelated themes. Start directly in its setting, not in a blanket fort unless that is the chosen premise.
 Tone: Warm, magical, comforting.
 Current chapter: ${chapterNum} of 3.
 Overall story premise: "${currentStoryPrompt}".
@@ -812,12 +844,12 @@ ${selectedChoice ? `What happened just before: Reader picked: "${selectedChoice}
 ${storyHistory ? `Previous story events: ${storyHistory}` : ''}
 
 Rules:
-- Write exactly 3 short paragraphs and 70-100 words total for this chapter.
-- Write for the youngest child's listening level (${youngestAge} years old), using familiar, concrete words and actions.
-- Keep sentences short, usually 4-8 words, with one clear idea in each sentence.
-- Do not use metaphors, similes, idioms, personification, poetic wording, or abstract descriptions.
-- Keep events gentle and easy to follow. No danger, threats, villains, or intense suspense.
-- Show the older child's caring nature through one simple helpful action. Give the younger child short, age-appropriate dialogue and gentle repetition. Do not make either child sound babyish.
+- Write 3 paragraphs and 130-170 words total for this chapter.
+- Write a story to be read aloud for both ages (${youngerChild.age} and ${olderChild.age}). Keep the action clear enough for the youngest child (${youngestAge}), while giving the older child interesting discoveries, dialogue, and a small problem to solve.
+- Use natural, varied sentences, mostly 6-14 words. Mix action, short dialogue, and concrete sensory details. Avoid repetitive subject-verb sentences or a list of simple actions.
+- Use familiar language with an occasional new word whose meaning is clear from the action. Avoid elaborate metaphors, idioms, poetic abstractions, and long descriptions. Talking animals and gentle magic are welcome.
+- Give each chapter a clear goal, a small surprise or obstacle, and meaningful progress. Gentle uncertainty, funny mistakes, and simple puzzles are welcome; no frightening danger, threats, cruelty, or intense suspense.
+- Let both siblings contribute in age-appropriate ways. Give them distinct, natural reactions and dialogue; do not make either child sound babyish or turn the story into a lesson.
 - If chapterNum is 1 or 2: Provide 2 short, clear choices, each no longer than 8 words.
 - If chapterNum is 3: End with a simple, calm bedtime scene and both children falling asleep. Return an empty array [] for choices.
 - Choose one "photoKeyword" from: ${availablePhotoKeywords.map(keyword => `"${keyword}"`).join(', ')}.
