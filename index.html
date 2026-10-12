@@ -844,14 +844,16 @@ ${selectedChoice ? `What happened just before: Reader picked: "${selectedChoice}
 ${storyHistory ? `Previous story events: ${storyHistory}` : ''}
 
 Rules:
-- Write 3 paragraphs and 130-170 words total for this chapter.
-- Write a story to be read aloud for both ages (${youngerChild.age} and ${olderChild.age}). Keep the action clear enough for the youngest child (${youngestAge}), while giving the older child interesting discoveries, dialogue, and a small problem to solve.
-- Use natural, varied sentences, mostly 6-14 words. Mix action, short dialogue, and concrete sensory details. Avoid repetitive subject-verb sentences or a list of simple actions.
-- Use familiar language with an occasional new word whose meaning is clear from the action. Avoid elaborate metaphors, idioms, poetic abstractions, and long descriptions. Talking animals and gentle magic are welcome.
-- Give each chapter a clear goal, a small surprise or obstacle, and meaningful progress. Gentle uncertainty, funny mistakes, and simple puzzles are welcome; no frightening danger, threats, cruelty, or intense suspense.
-- Let both siblings contribute in age-appropriate ways. Give them distinct, natural reactions and dialogue; do not make either child sound babyish or turn the story into a lesson.
-- If chapterNum is 1 or 2: Provide 2 short, clear choices, each no longer than 8 words.
-- If chapterNum is 3: End with a simple, calm bedtime scene and both children falling asleep. Return an empty array [] for choices.
+- Write 3 paragraphs and 100-130 words total for this chapter.
+- Write for both ages (${youngerChild.age} and ${olderChild.age}), using familiar everyday words that the youngest child (${youngestAge}) can follow when listening.
+- Use natural, varied sentences. Explain an unfamiliar word through what a character does; avoid difficult vocabulary, metaphors, similes, idioms, poetic language, and long descriptions.
+- Stay in one main setting and follow one story problem. Include only details that help the children understand what is happening or what the characters want.
+- Build a clear three-chapter plot: chapter 1 introduces what the children want and the problem; chapter 2 follows their chosen plan and adds one complication; chapter 3 uses their next choice to solve the problem and ends calmly at bedtime.
+- Make each event follow from the previous one. Choices must change what the children try next, not introduce an unrelated adventure.
+- Let both children help in age-appropriate ways, with a few short lines of natural dialogue. Make the story lively and warm without adding extra characters or side plots that do not help solve the problem.
+- Keep everything gentle. No frightening danger, threats, cruelty, or intense suspense.
+- If chapterNum is 1 or 2: Provide 2 short, clear choices that suggest different next actions.
+- If chapterNum is 3: Resolve the main problem and end with a simple, calm bedtime scene. Return an empty array [] for choices.
 - Choose one "photoKeyword" from: ${availablePhotoKeywords.map(keyword => `"${keyword}"`).join(', ')}.
 
 Return pure JSON matching this schema:

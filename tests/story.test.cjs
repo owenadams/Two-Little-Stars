@@ -99,9 +99,11 @@ test('all 18 templates use available image keys and the prompt requests balanced
   };
   context.displayChapter = () => {};
   await context.generateNextChapter(1, '');
-  assert.ok(prompt.includes('130-170 words'));
+  assert.ok(prompt.includes('100-130 words'));
   assert.ok(prompt.includes('both ages (2 and 5)'));
   assert.ok(prompt.includes('Pirate') || prompt.includes('friendly pirates'));
-  assert.ok(prompt.includes('a small surprise or obstacle'));
-  assert.ok(!prompt.includes('usually 4-8 words'));
+  assert.ok(prompt.includes('one story problem'));
+  assert.ok(prompt.includes('chapter 2 follows their chosen plan'));
+  assert.ok(prompt.includes('Choices must change what the children try next'));
+  assert.ok(!prompt.includes('interesting discoveries'));
 });
